@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Document Classifier - Fixed Version</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+        }
+
+        .upload-section {
+            background: #f8f9ff;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 2px dashed #667eea;
+        }
+
+        .upload-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .upload-box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-box:hover {
+            background: #f0f2ff;
+            transform: translateY(-2px);
+        }
+
+        .file-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .file-info.active {
+            display: block;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1em;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .results-section {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .result-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0 20px 0;
+        }
+
+        .confidence-bar {
+            background: rgba(255,255,255,0.3);
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            background: white;
+            height: 100%;
+            transition: width 1s ease;
+            display: flex;
+            align-items: center;
+            padding-left: 15px;
+            font-weight: 600;
+        }
+
+        .document-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .type-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .type-name {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .probability-bar {
+            background: #f0f0f0;
+            height: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .probability-fill {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.8s ease;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #fileInput, #csvInput {
+            display: none;
+        }
+
+        .status-msg {
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status-msg.active {
+            display: block;
+        }
+
+        .status-msg.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-msg.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-msg.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚖️ Legal Document Classifier</h1>
+            <p>PDF, DOCX, TXT & CSV Support</p>
+        </div>
+
+        <div class="main-card">
+            <!-- CSV Upload -->
+            <div class="upload-section">
+                <h3>📊 Upload Kaggle Dataset (CSV)</h3>
+                <div class="upload-box" onclick="document.getElementById('csvInput').click()">
+                    <div style="font-size: 2em; margin-bottom: 10px;">📁</div>
+                    <div style="color: #667eea; font-weight: 600;">Click to Upload CSV</div>
+                    <input type="file" id="csvInput" accept=".csv">
+                </div>
+                <div class="status-msg" id="csvStatus"></div>
+            </div>
+
+            <!-- Document Upload -->
+            <div class="upload-section">
+                <h3>📄 Upload Document (PDF, DOCX, TXT)</h3>
+                <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+                    <div style="font-size: 2em; margin-bottom: 10px;">📎</div>
+                    <div style="color: #667eea; font-weight: 600;">Click to Upload Document</div>
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.txt">
+                </div>
+                <div class="file-info" id="fileInfo">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div><strong>File:</strong> <span id="fileName"></span></div>
+                            <div><strong>Size:</strong> <span id="fileSize"></span></div>
+                            <div><strong>Status:</strong> <span id="fileStatus"></span></div>
+                        </div>
+                        <button id="deleteFileBtn" style="background: #ff4444; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 1.2em; transition: all 0.3s;" onclick="deleteUploadedFile(event)" title="Delete file">🗑️</button>
+                    </div>
+                </div>
+                <div class="status-msg" id="fileStatusMsg"></div>
+            </div>
+
+            <!-- Text Input -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="color: #333; margin-bottom: 15px;">Or Paste Text:</h3>
+                <textarea id="documentText" placeholder="Paste your legal document text here..."></textarea>
+            </div>
+
+            <!-- Buttons -->
+            <div class="button-group">
+                <button class="btn btn-primary" id="classifyBtn">Classify Document</button>
+                <button class="btn btn-success" id="randomBtn" style="display:none;">Random from Dataset</button>
+                <button class="btn btn-secondary" id="clearBtn">Clear</button>
+            </div>
+
+            <!-- Loading -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Analyzing...</p>
+            </div>
+
+            <!-- Results -->
+            <div class="results-section" id="results">
+                <div class="result-card">
+                    <div style="opacity: 0.9; margin-bottom: 10px;">Classification</div>
+                    <div class="result-value" id="resultType">Contract</div>
+                    <div style="opacity: 0.9; margin-bottom: 10px;">Confidence</div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" id="confidenceFill">0%</div>
+                    </div>
+                </div>
+
+                <!-- Legal Branch Information -->
+                <div style="background: #f8f9ff; padding: 25px; border-radius: 15px; margin-bottom: 20px; border-left: 5px solid #667eea;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">📚 Legal Branch</h3>
+                    <div style="background: white; padding: 20px; border-radius: 10px;">
+                        <div style="font-size: 1.2em; font-weight: 600; color: #333; margin-bottom: 10px;" id="legalBranch">Contract Law</div>
+                        <div style="color: #666; line-height: 1.6;" id="branchDescription">
+                            This document falls under Contract Law, which governs legally binding agreements between parties.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Case Summary -->
+                <div style="background: #fff8e1; padding: 25px; border-radius: 15px; margin-bottom: 20px; border-left: 5px solid #ffa726;">
+                    <h3 style="color: #f57c00; margin-bottom: 15px;">📋 Case Summary</h3>
+                    <div style="background: white; padding: 20px; border-radius: 10px;">
+                        <div style="color: #555; line-height: 1.8; white-space: pre-wrap;" id="caseSummary">
+                            Document summary will appear here after classification...
+                        </div>
+                    </div>
+                </div>
+
+                <h3 style="margin-bottom: 15px; color: #333;">All Results:</h3>
+                <div class="document-types" id="documentTypes"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize PDF.js
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        let csvData = [];
+
+        const fileInput = document.getElementById('fileInput');
+        const csvInput = document.getElementById('csvInput');
+        const documentText = document.getElementById('documentText');
+        const classifyBtn = document.getElementById('classifyBtn');
+        const randomBtn = document.getElementById('randomBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+
+        // CSV Upload - FIXED VERSION
+        csvInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('csvStatus');
+            statusEl.textContent = 'Loading CSV...';
+            statusEl.className = 'status-msg active info';
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: false,
+                complete: function(results) {
+                    console.log('CSV Parse Results:', results);
+                    console.log('First row:', results.data[0]);
+                    
+                    // Try multiple possible column name variations
+                    csvData = results.data.filter(row => {
+                        // Check all possible column names (case-insensitive)
+                        const possibleColumns = [
+                            'case_text', 'casetext', 'text', 'document', 
+                            'content', 'description', 'doc', 'case text',
+                            'Text', 'Document', 'Content', 'CASE_TEXT'
+                        ];
+                        
+                        // Find the first column that exists and has content
+                        for (let col of possibleColumns) {
+                            if (row[col] && row[col].toString().trim().length > 50) {
+                                // Store which column we're using
+                                row._textColumn = col;
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+                    
+                    if (csvData.length > 0) {
+                        const columnUsed = csvData[0]._textColumn;
+                        statusEl.textContent = `✅ Loaded ${csvData.length} documents from CSV (using column: "${columnUsed}")`;
+                        statusEl.className = 'status-msg active success';
+                        randomBtn.style.display = 'inline-block';
+                        console.log(`Successfully loaded ${csvData.length} rows`);
+                    } else {
+                        // Show available columns to help debug
+                        const availableColumns = results.data[0] ? Object.keys(results.data[0]) : [];
+                        statusEl.textContent = `❌ No valid documents found. Available columns: ${availableColumns.join(', ')}`;
+                        statusEl.className = 'status-msg active error';
+                        console.log('Available columns:', availableColumns);
+                        console.log('Sample row:', results.data[0]);
+                    }
+                },
+                error: function(error) {
+                    statusEl.textContent = '❌ Failed to load CSV: ' + error.message;
+                    statusEl.className = 'status-msg active error';
+                    console.error('CSV Parse Error:', error);
+                }
+            });
+        });
+
+        // Document Upload
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('fileStatusMsg');
+            const fileInfoEl = document.getElementById('fileInfo');
+            
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+            document.getElementById('fileStatus').textContent = 'Processing...';
+            fileInfoEl.classList.add('active');
+            
+            statusEl.textContent = '⏳ Processing file...';
+            statusEl.className = 'status-msg active info';
+
+            try {
+                let text = '';
+                const fileName = file.name.toLowerCase();
+
+                if (fileName.endsWith('.pdf')) {
+                    text = await extractPDF(file);
+                } else if (fileName.endsWith('.docx')) {
+                    text = await extractDOCX(file);
+                } else if (fileName.endsWith('.txt')) {
+                    text = await extractTXT(file);
+                } else {
+                    throw new Error('Unsupported file type');
+                }
+
+                if (text.trim()) {
+                    documentText.value = text;
+                    document.getElementById('fileStatus').textContent = '✅ Success';
+                    statusEl.textContent = '✅ File loaded successfully!';
+                    statusEl.className = 'status-msg active success';
+                } else {
+                    throw new Error('No text extracted');
+                }
+
+            } catch (error) {
+                document.getElementById('fileStatus').textContent = '❌ Failed';
+                statusEl.textContent = '❌ Error: ' + error.message;
+                statusEl.className = 'status-msg active error';
+                console.error(error);
+            }
+        });
+
+        async function extractPDF(file) {
+            if (typeof pdfjsLib === 'undefined') {
+                throw new Error('PDF library not loaded');
+            }
+            
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let text = '';
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                text += content.items.map(item => item.str).join(' ') + '\n\n';
+            }
+
+            return text;
+        }
+
+        async function extractDOCX(file) {
+            if (typeof mammoth === 'undefined') {
+                throw new Error('DOCX library not loaded');
+            }
+            
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+            return result.value;
+        }
+
+        async function extractTXT(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(new Error('Failed to read file'));
+                reader.readAsText(file);
+            });
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        // Delete uploaded file
+        function deleteUploadedFile(event) {
+            event.stopPropagation();
+            fileInput.value = '';
+            documentText.value = '';
+            document.getElementById('fileInfo').classList.remove('active');
+            document.getElementById('fileStatusMsg').classList.remove('active');
+            results.classList.remove('active');
+            
+            const statusEl = document.getElementById('fileStatusMsg');
+            statusEl.textContent = '🗑️ File deleted';
+            statusEl.className = 'status-msg active info';
+            setTimeout(() => statusEl.classList.remove('active'), 2000);
+        }
+
+        // Random from dataset - FIXED VERSION
+        randomBtn.addEventListener('click', () => {
+            if (csvData.length > 0) {
+                const item = csvData[Math.floor(Math.random() * csvData.length)];
+                const columnName = item._textColumn;
+                const text = item[columnName] || '';
+                documentText.value = text;
+                classifyDocument();
+            }
+        });
+
+        // Classify
+        classifyBtn.addEventListener('click', classifyDocument);
+
+        function classifyDocument() {
+            const text = documentText.value.trim();
+            
+            if (!text) {
+                alert('Please upload a file or enter text');
+                return;
+            }
+
+            loading.classList.add('active');
+            results.classList.remove('active');
+
+            setTimeout(() => {
+                const classification = analyzeDocument(text);
+                displayResults(classification, text);
+                loading.classList.remove('active');
+                results.classList.add('active');
+            }, 1500);
+        }
+
+        function analyzeDocument(text) {
+            const lower = text.toLowerCase();
+            
+            const patterns = {
+                'Contract': ['agreement', 'party', 'parties', 'hereby', 'whereas', 'terms', 'conditions'],
+                'Court Document': ['plaintiff', 'defendant', 'court', 'judge', 'case', 'motion', 'order'],
+                'Legal Opinion': ['opinion', 'analysis', 'legal', 'pursuant', 'statute', 'precedent'],
+                'Patent': ['invention', 'claim', 'patent', 'apparatus', 'method', 'embodiment'],
+                'Will/Trust': ['will', 'testament', 'trust', 'beneficiary', 'executor', 'estate'],
+                'Power of Attorney': ['power of attorney', 'agent', 'principal', 'authority'],
+                'NDA': ['confidential', 'non-disclosure', 'proprietary', 'trade secret'],
+                'Lease Agreement': ['lease', 'landlord', 'tenant', 'rent', 'premises']
+            };
+
+            const scores = {};
+            for (const [type, keywords] of Object.entries(patterns)) {
+                scores[type] = 0;
+                keywords.forEach(kw => {
+                    const regex = new RegExp('\\b' + kw + '\\b', 'gi');
+                    scores[type] += (lower.match(regex) || []).length;
+                });
+            }
+
+            const total = Object.values(scores).reduce((a, b) => a + b, 0);
+            const results = Object.entries(scores).map(([type, score]) => ({
+                type,
+                probability: total > 0 ? (score / total * 100) : 12.5
+            }));
+
+            results.sort((a, b) => b.probability - a.probability);
+            
+            const sum = results.reduce((s, r) => s + r.probability, 0);
+            results.forEach(r => r.probability = (r.probability / sum) * 100);
+
+            return results;
+        }
+
+        function getLegalBranch(docType) {
+            const branches = {
+                'Contract': {
+                    branch: 'Contract Law',
+                    description: 'This document falls under Contract Law, which governs legally binding agreements between parties. It involves offer, acceptance, consideration, and mutual intent to be bound by terms.'
+                },
+                'Court Document': {
+                    branch: 'Civil/Criminal Procedure',
+                    description: 'This belongs to Civil or Criminal Procedure law, which governs the process and rules by which courts adjudicate legal disputes, including motions, pleadings, and court orders.'
+                },
+                'Legal Opinion': {
+                    branch: 'Legal Analysis & Advisory',
+                    description: 'This is a Legal Opinion or Advisory document that provides professional legal analysis, interpretation of statutes, case law, and recommendations based on legal research.'
+                },
+                'Patent': {
+                    branch: 'Intellectual Property Law',
+                    description: 'This falls under Intellectual Property Law (Patent Law), which protects inventions and innovations by granting exclusive rights to inventors for a limited period.'
+                },
+                'Will/Trust': {
+                    branch: 'Estate Planning & Probate Law',
+                    description: 'This document is governed by Estate Planning and Probate Law, which deals with the distribution of assets, testamentary documents, and management of trusts and estates.'
+                },
+                'Power of Attorney': {
+                    branch: 'Agency & Fiduciary Law',
+                    description: 'This falls under Agency and Fiduciary Law, which governs the relationship where one party (agent) is authorized to act on behalf of another (principal) in legal matters.'
+                },
+                'NDA': {
+                    branch: 'Confidentiality & Trade Secrets Law',
+                    description: 'This is governed by Confidentiality and Trade Secrets Law, which protects proprietary information and regulates the disclosure of sensitive business information.'
+                },
+                'Lease Agreement': {
+                    branch: 'Property & Real Estate Law',
+                    description: 'This falls under Property and Real Estate Law, which governs rental relationships between landlords and tenants, including rights, obligations, and property usage terms.'
+                }
+            };
+            return branches[docType] || { branch: 'General Law', description: 'General legal document' };
+        }
+
+        function generateSummary(text, docType) {
+            const words = text.split(/\s+/);
+            const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+            
+            // Extract key information based on document type
+            let summary = '';
+            
+            if (sentences.length > 0) {
+                // Get first few sentences as summary (max 3)
+                summary = sentences.slice(0, Math.min(3, sentences.length)).join(' ').trim();
+                
+                // Limit to ~200 words
+                const summaryWords = summary.split(/\s+/);
+                if (summaryWords.length > 200) {
+                    summary = summaryWords.slice(0, 200).join(' ') + '...';
+                }
+            } else {
+                // Fallback: just take first 200 words
+                summary = words.slice(0, Math.min(200, words.length)).join(' ') + '...';
+            }
+            
+            return summary || 'No summary available for this document.';
+        }
+
+        function displayResults(classification, text) {
+            const top = classification[0];
+            document.getElementById('resultType').textContent = top.type;
+            
+            const conf = Math.round(top.probability);
+            document.getElementById('confidenceFill').style.width = conf + '%';
+            document.getElementById('confidenceFill').textContent = conf + '%';
+
+            // Display legal branch
+            const branchInfo = getLegalBranch(top.type);
+            document.getElementById('legalBranch').textContent = branchInfo.branch;
+            document.getElementById('branchDescription').textContent = branchInfo.description;
+
+            // Display case summary
+            const summary = generateSummary(text, top.type);
+            document.getElementById('caseSummary').textContent = summary;
+
+            const container = document.getElementById('documentTypes');
+            container.innerHTML = '';
+            
+            classification.forEach(item => {
+                container.innerHTML += `
+                    <div class="type-card">
+                        <div class="type-name">${item.type}</div>
+                        <div style="color: #666; font-size: 0.9em;">${Math.round(item.probability)}% match</div>
+                        <div class="probability-bar">
+                            <div class="probability-fill" style="width: ${item.probability}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Clear
+        clearBtn.addEventListener('click', () => {
+            documentText.value = '';
+            fileInput.value = '';
+            document.getElementById('fileInfo').classList.remove('active');
+            document.getElementById('fileStatusMsg').classList.remove('active');
+            results.classList.remove('active');
+        });
+    </script>
+</body>
+</html>
